@@ -1,0 +1,51 @@
+language: generic
+os: linux
+
+env:
+  global:
+    - PATH=~/.roswell/bin:$PATH
+    - ROSWELL_INSTALL_DIR=$HOME/.roswell
+    - ROSWELL_VERSION=20.04.14.105
+    - ROSWELL_URL="https://raw.githubusercontent.com/roswell/roswell/v$ROSWELL_VERSION/scripts/install-for-ci.sh"
+
+jobs:
+  include:
+    - os: linux
+      env:
+        - LISP=sbcl-bin/2.0.4
+        - DEST=plan-convert-linux
+    - os: osx
+      env:
+        - LISP=sbcl-bin/2.0.4
+        - DEST=plan-convert-osx
+    - os: windows
+      language: shell
+      env:
+        - LISP=sbcl-bin/2.0.0
+        - DEST=plan-convert.exe
+
+install:
+  - curl -L $ROSWELL_URL | sh
+  - |
+    if [ "$TRAVIS_OS_NAME" = "windows" ]; then
+      choco install make
+    fi
+
+script:
+  - make binary-ros
+  - bin/plan-convert --version
+
+before_deploy:
+  - mv bin/plan-convert bin/$DEST
+
+deploy:
+  provider: releases
+  token:
+    secure: "A5hu1cQIo8ALhHFYtlebwdjxf3W7vcHjtWz1xz0wvXSyciAR6ewuHPev67+bYz1I/4DWKIGK9DY3GOiEvGvoZ/IKCVTHa9MaPHLZykzS2eT0EvrhRUvCePJzVZPxyg6sO0sfzsmHYTaCPaXBxQAZk/5KHLgRJsDenbRpNhI42LUM4qIfMIrguXL14lpLoJf6QM4KvyJoeMaNVL7AhBanPjTNvihhhyq2CW52dmeIVoW5/84GpeZ8sl5CzVwbOmdFZ6hQKjK4BpW2iWFqDuF/yVZRj+5yi+HwYvwg8EnEFi1uUnXJAx284oXi+TKep7TriECaM0XqhMaylbG4v9JPH2fECIwRbvVS4g1EDVKJLQbaXQOuzXOpyTjtKF82MyftSIqxHAz/aoAgkJiYRsbRTZhHlzRE3XcaL9odPUBqPW7XRqK2k0SftIcIWT2PHzSDyP3aLnGOWt0rIahBZBHQ+Z7jO1oQaRu3Ewy+n/goIWqAybSTPvEZct93BXdrqUu/WWwFevJ3wFtDMpQmaMOfeRuvOFKtf3JRqV7v26V3B4paSCS1wcBjCHUwTnPZURAKwel1M0NHG6PPiBIAN39IUw/YRHRdpROH2lUZdi05F74jVoaYbLUPH2yX8cjDRiEzIVCojCA0VzBvrkMX5L3LV+f9nCPpDg6SH7+9WvVLZT8="
+
+  skip_cleanup: true
+  file: bin/$DEST
+  on:
+    repo: iamFIREcracker/plan-convert
+    tags: true
+

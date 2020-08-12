@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+
+set -ex
+
+case $(uname -rs) in
+  *Darwin*)
+    BIN_REMOTE=plan-convert-osx
+    BIN_LOCAL=plan-convert
+    ;;
+  *CYGWIN*|*MINGW*)
+    BIN_REMOTE=plan-convert.exe
+    BIN_LOCAL=plan-convert.exe
+    ;;
+  *Microsoft*|*)
+    BIN_REMOTE=plan-convert-linux
+    BIN_LOCAL=plan-convert
+    ;;
+esac
+
+mkdir -p bin
+curl --silent https://api.github.com/repos/iamFIREcracker/plan-convert/releases/latest \
+       | grep "browser_download_url.*$BIN_REMOTE" \
+       | cut -d : -f 2,3 \
+       | tr -d \" \
+       | xargs -I {} curl --location {} --output bin/$BIN_LOCAL
+chmod +x bin/$BIN_LOCAL
+
