@@ -106,6 +106,90 @@
 (defun plan-day-title (d)
   (day-header-date (plan-day-date d)))
 
+(defun plan-day-sections (d)
+  (let (sections section)
+    (dolist (l (plan-day-lines d))
+      (if (eql (getf l :type) :separator)
+          (setf sections (cons (reverse section) sections)
+                section nil)
+          (push l section)))
+    (when section
+      (push (reverse section) sections))
+    (nreverse sections)))
+
+(defun plan-day-lines (d)
+  (strip-trailing-newlines
+    (collapse-collapsables
+      (collapse-empties
+        (parse-content-into-lines (plan-day-content d))))))
+
+(defun parse-content-into-lines (s)
+  (nreverse
+    (reduce #'(lambda (acc s)
+               (cons
+                 (cond ((zerop (length s)) (list :type :empty))
+                       ((string= s "---") (list :type :separator))
+                       ((string= (subseq-safe s 0 2) "* ") (list :type :accomplished :content (subseq s 2)))
+                       ((string= (subseq-safe s 0 2) "+ ") (list :type :fixed :content (subseq s 2)))
+                       ((string= (subseq-safe s 0 2) "? ") (list :type :idea :content (subseq s 2)))
+                       ((string= (subseq-safe s 0 2) "~ ") (list :type :discarded :content (subseq s 2)))
+                       ((string= (subseq-safe s 0 4) "    ") (list :type :snippet :content (subseq s 4)))
+                       (t (list :type :generic :content s)))
+                 acc))
+            (split-sequence:split-sequence #\Newline s)
+            :initial-value nil)))
+
+(defun subseq-safe (sequence start &optional end)
+  (when end
+    (when (< (length sequence) end)
+      (setf end nil)))
+  (subseq sequence start end))
+
+(defun collapse-empties (lines)
+  (nreverse
+    (reduce #'(lambda (acc l)
+               (let ((cur-type (getf l :type))
+                     (prev-type (getf (first acc) :type)))
+                 (if (eql cur-type :empty)
+                     (when (member prev-type '(:generic :snippet))
+                       (let ((prev-content (getf (first acc) :content)))
+                         (setf (getf (first acc) :content)
+                               (concatenate 'string prev-content '(#\Newline)))))
+                     (push l acc))
+                 acc))
+            lines
+            :initial-value nil)))
+
+(defun collapse-collapsables (lines)
+  (nreverse
+    (reduce #'(lambda (acc l)
+               (let ((cur-type (getf l :type))
+                     (prev-type (getf (first acc) :type)))
+                 (if (and (eql cur-type prev-type) (member prev-type '(:generic :snippet)))
+                   (let ((prev-content (getf (first acc) :content)))
+                     (setf (getf (first acc) :content)
+                           (concatenate 'string prev-content '(#\Newline) (getf l :content))))
+                   (push l acc))
+                 acc))
+            lines
+            :initial-value nil)))
+
+(defun strip-trailing-newlines (lines)
+  (prog1 lines
+    (dolist (l lines)
+      (setf (getf l :content) (string-strip-trailing-newlines (getf l :content))))))
+
+(defun string-strip-trailing-newlines (string)
+  (loop
+    :with string = string
+    :while (and string (string-ends-with-newline string))
+    :do (setf string (subseq string 0 (1- (length string))))
+    :finally (return string)))
+
+(defun string-ends-with-newline (s)
+  (char= (char s (1- (length s)))
+         #\Newline))
+
 (defun read-plan-day ()
   (unless (eof-p *last-line*)
     (make-plan-day :date *last-line* :content (read-channel-description))))
@@ -140,50 +224,22 @@
                     :finally (return (nreverse days)))))
     (djula:render-template* (pathname *template-path*) *standard-output*
                             :version *version*
-                            :description description
+                            :description (string-strip-trailing-newlines description)
                             :days (mapcar #'(lambda (day)
-                                              (list
-                                                :date (plan-day-title day)
-                                                :content (plan-day-content day)))
-                                          days))))
+                                             (list
+                                               :date (plan-day-title day)
+                                               :content (string-strip-trailing-newlines (plan-day-content day))
+                                               :sections (plan-day-sections day)))
+                                          days)
+                            :accomplished :accomplished
+                            :fixed :fixed
+                            :discarded :discarded
+                            :idea :idea
+                            :snippet :snippet
+                            :generic :generic)))
 
 (defun toplevel()
   (handler-case (parse-opts (opts:argv))
     (exit (condition)
       (opts:exit (exit-code condition))))
   (process-input))
-
-;;; REPL ----------------------------------------------------------------------
-
-#+NIL
-(setf *version* "0.0.1")
-
-#+NIL
-(setf *template-path* #P"template-html.htmldjango")
-
-#+NIL
-(setf *template-path* #P"template-rss.htmldjango")
-
-#+NIL
-(defun fake-input-stream ()
-  (make-string-input-stream "This is my log ...
-
-When I accomplish something, I write a * line that day.
-
-Whenever a bug / missing feature / idea is mentioned during the day and I don't fix it, I make a note of it and mark it with ?.  Some things get noted many times before they get fixed.
-
-Occasionally I go back through the old notes and mark with a + the things I have since fixed, and with a ~ the things I have since lost interest in.
-
---- Matteo Landi
-
-# 2019-11-01
-* xml-emitter: Add support for guid isPermaLink=false (https://github.com/VitoVan/xml-emitter/pull/3)
-* xml-emitter: Add support for atom:link with rel=\"self\" (https://github.com/VitoVan/xml-emitter/pull/4)
-
-# 2019-10-30
-Finally A/I came back online, and I was finally able to create a request for a mailing list (to use it with the other college friends).  Anyway, the request has been created, so hopefully over the following days we will hear back from them...stay tuned!
-
-"))
-
-#+NIL
-(let ((*standard-input* (fake-input-stream))) (process-input))

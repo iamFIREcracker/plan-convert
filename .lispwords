@@ -1,1 +1,6 @@
 (1 let*)
+(1 let)
+(1 when)
+(1 if)
+(1 prog1)
+(1 dolist)
