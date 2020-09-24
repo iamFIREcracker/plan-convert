@@ -133,6 +133,7 @@
                        ((string= (subseq-safe s 0 2) "+ ") (list :type :fixed :content (subseq s 2)))
                        ((string= (subseq-safe s 0 2) "? ") (list :type :idea :content (subseq s 2)))
                        ((string= (subseq-safe s 0 2) "~ ") (list :type :discarded :content (subseq s 2)))
+                       ((string= (subseq-safe s 0 2) "> ") (list :type :quoted :content (subseq s 2)))
                        ((string= (subseq-safe s 0 4) "    ") (list :type :snippet :content (subseq s 4)))
                        (t (list :type :generic :content s)))
                  acc))
@@ -236,6 +237,7 @@
                             :discarded :discarded
                             :idea :idea
                             :snippet :snippet
+                            :quoted :quoted
                             :generic :generic)))
 
 (defun toplevel()
